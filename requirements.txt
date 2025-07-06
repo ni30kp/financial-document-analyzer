@@ -1,0 +1,41 @@
+# Core dependencies (compatible versions)
+langchain==0.1.20
+langchain-community==0.0.38
+langchain-core==0.1.53
+langchain-openai==0.1.7
+
+# PDF processing
+PyMuPDF==1.24.2
+pdfplumber>=0.11.4
+
+# Vector database and embeddings
+faiss-cpu>=1.7.4
+sentence-transformers==2.6.1
+
+# API and HTTP
+openai>=1.70.0
+requests>=2.32.3
+
+# Data processing
+pandas==2.2.2
+numpy>=1.24.3
+
+# Web interface
+streamlit>=1.46.1
+plotly>=6.2.0
+
+# Environment and configuration
+python-dotenv==1.0.1
+
+# Logging and utilities
+structlog==23.1.0
+pydantic>=2.8.0
+
+# Testing (optional)
+pytest==8.1.1
+pytest-asyncio==0.23.6
+
+# Additional utilities
+typing-extensions>=4.11.0
+tiktoken>=0.6.0
+reportlab==4.0.4
