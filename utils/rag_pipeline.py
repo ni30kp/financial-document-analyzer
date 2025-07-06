@@ -1,5 +1,5 @@
 """
-RAG Pipeline with FAISS Vector Database for Financial Document Retrieval
+RAG pipeline with FAISS vector database
 """
 import os
 import pickle
@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 faiss.omp_set_num_threads(1)
 
 class ModelManager:
-    """
-    Singleton pattern for managing SentenceTransformer models to avoid multiple loading
-    """
+    """Singleton for managing SentenceTransformer models"""
     _instance = None
     _models = {}
     
@@ -39,9 +37,9 @@ class ModelManager:
         return cls._instance
     
     def get_model(self, model_name: str) -> SentenceTransformer:
-        """Get or create a SentenceTransformer model"""
+        """Get or create a model"""
         if model_name not in self._models:
-            logger.info(f"Loading SentenceTransformer model: {model_name}")
+            logger.info(f"Loading model: {model_name}")
             self._models[model_name] = SentenceTransformer(model_name)
         return self._models[model_name]
     
@@ -50,9 +48,7 @@ class ModelManager:
         self._models.clear()
 
 class DocumentChunker:
-    """
-    Document chunker for splitting large documents into manageable chunks
-    """
+    """Document chunker for splitting large documents"""
     
     def __init__(self, chunk_size: int = None, overlap: int = None):
         self.chunk_size = chunk_size or settings.CHUNK_SIZE
@@ -60,16 +56,7 @@ class DocumentChunker:
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
         
     def chunk_text(self, text: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """
-        Split text into chunks with overlap
-        
-        Args:
-            text: Text to chunk
-            metadata: Optional metadata to include with chunks
-            
-        Returns:
-            List of chunk dictionaries
-        """
+        """Split text into chunks with overlap"""
         if not text or not text.strip():
             return []
         
@@ -113,19 +100,11 @@ class DocumentChunker:
             }
             chunks.append(chunk_data)
         
-        logger.info(f"Created {len(chunks)} chunks from document")
+        logger.info(f"Created {len(chunks)} chunks")
         return chunks
     
     def _split_into_sentences(self, text: str) -> List[str]:
-        """
-        Split text into sentences using simple heuristics
-        
-        Args:
-            text: Text to split
-            
-        Returns:
-            List of sentences
-        """
+        """Split text into sentences"""
         import re
         
         # Simple sentence splitting
@@ -148,16 +127,7 @@ class DocumentChunker:
         return processed_sentences
     
     def _get_overlap_sentences(self, sentences: List[str], overlap_tokens: int) -> List[str]:
-        """
-        Get sentences for overlap based on token count
-        
-        Args:
-            sentences: List of sentences
-            overlap_tokens: Number of tokens to overlap
-            
-        Returns:
-            List of sentences for overlap
-        """
+        """Get sentences for overlap based on token count"""
         overlap_sentences = []
         token_count = 0
         
@@ -172,9 +142,7 @@ class DocumentChunker:
         return overlap_sentences
 
 class VectorStore:
-    """
-    FAISS-based vector store for document embeddings
-    """
+    """FAISS-based vector store"""
     
     def __init__(self, model_name: str = None, index_path: str = None):
         self.model_name = model_name or settings.EMBEDDINGS_MODEL
@@ -200,12 +168,13 @@ class VectorStore:
             metadata_file = f"{self.index_path}.metadata"
             documents_file = f"{self.index_path}.documents"
             
-            if os.path.exists(index_file) and os.path.exists(metadata_file):
+            if all(os.path.exists(f) for f in [index_file, metadata_file, documents_file]):
+                # Load FAISS index
                 self.index = faiss.read_index(index_file)
                 
+                # Load metadata and documents
                 with open(metadata_file, 'rb') as f:
                     self.metadata = pickle.load(f)
-                
                 with open(documents_file, 'rb') as f:
                     self.documents = pickle.load(f)
                 
@@ -219,233 +188,172 @@ class VectorStore:
     
     def _create_new_index(self):
         """Create a new FAISS index"""
-        # Explicitly create CPU-only index
         self.index = faiss.IndexFlatIP(self.embedding_dim)  # Inner product for cosine similarity
-        # Ensure CPU-only execution
-        if hasattr(faiss, 'get_num_gpus') and faiss.get_num_gpus() > 0:
-            logger.info("GPU available but using CPU-only FAISS index")
         self.documents = []
         self.metadata = []
-        logger.info("Created new CPU-only FAISS index")
+        logger.info("Created new FAISS index")
     
     def add_documents(self, chunks: List[Dict[str, Any]]) -> None:
-        """
-        Add document chunks to the vector store
-        
-        Args:
-            chunks: List of document chunks with text and metadata
-        """
+        """Add document chunks to the index"""
         if not chunks:
             return
         
-        # Extract texts for embedding
         texts = [chunk["text"] for chunk in chunks]
-        
-        # Generate embeddings
-        logger.info(f"Generating embeddings for {len(texts)} chunks")
         embeddings = self.embeddings_model.encode(texts, normalize_embeddings=True)
         
         # Add to FAISS index
-        self.index.add(embeddings.astype(np.float32))
+        self.index.add(embeddings.astype('float32'))
         
         # Store documents and metadata
         self.documents.extend(texts)
         self.metadata.extend([chunk.get("metadata", {}) for chunk in chunks])
         
-        logger.info(f"Added {len(texts)} chunks to vector store")
+        logger.info(f"Added {len(chunks)} chunks to index")
     
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search for similar documents
-        
-        Args:
-            query: Search query
-            k: Number of results to return
-            
-        Returns:
-            List of search results with scores
-        """
-        if not self.documents:
+        """Search for relevant documents"""
+        if self.index.ntotal == 0:
             return []
         
-        # Generate query embedding
+        # Get query embedding
         query_embedding = self.embeddings_model.encode([query], normalize_embeddings=True)
         
-        # Search in FAISS index
-        scores, indices = self.index.search(query_embedding.astype(np.float32), k)
+        # Search FAISS index
+        scores, indices = self.index.search(query_embedding.astype('float32'), min(k, self.index.ntotal))
         
-        # Prepare results
         results = []
-        for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
-            if idx < len(self.documents):
-                result = {
+        for score, idx in zip(scores[0], indices[0]):
+            if idx < len(self.documents):  # Ensure valid index
+                results.append({
                     "text": self.documents[idx],
                     "score": float(score),
-                    "rank": i + 1,
                     "metadata": self.metadata[idx] if idx < len(self.metadata) else {}
-                }
-                results.append(result)
+                })
         
         return results
     
     def save_index(self) -> None:
-        """Save the FAISS index and metadata to disk"""
+        """Save the index and metadata"""
         try:
-            # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
             
-            # Save index
+            # Save FAISS index
             faiss.write_index(self.index, f"{self.index_path}.index")
             
-            # Save metadata
+            # Save metadata and documents
             with open(f"{self.index_path}.metadata", 'wb') as f:
                 pickle.dump(self.metadata, f)
-            
-            # Save documents
             with open(f"{self.index_path}.documents", 'wb') as f:
                 pickle.dump(self.documents, f)
             
-            logger.info(f"Saved index with {len(self.documents)} documents")
+            logger.info("Index saved successfully")
             
         except Exception as e:
             logger.error(f"Failed to save index: {e}")
     
     def get_stats(self) -> Dict[str, Any]:
-        """Get statistics about the vector store"""
+        """Get index statistics"""
         return {
             "total_documents": len(self.documents),
             "index_size": self.index.ntotal if self.index else 0,
-            "embedding_dimension": self.embedding_dim,
-            "model_name": self.model_name
+            "embedding_dimension": self.embedding_dim
         }
 
 class Reranker:
-    """
-    Simple reranker for improving retrieval quality
-    """
+    """Simple reranker using cosine similarity"""
     
     def __init__(self, model_name: str = None):
         self.model_name = model_name or settings.EMBEDDINGS_MODEL
-        # Use singleton model manager
         self.model_manager = ModelManager()
-        self.embeddings_model = self.model_manager.get_model(self.model_name)
     
     def rerank(self, query: str, documents: List[Dict[str, Any]], top_k: int = 3) -> List[Dict[str, Any]]:
-        """
-        Rerank documents using cross-encoder or similarity scoring
-        
-        Args:
-            query: Original query
-            documents: List of retrieved documents
-            top_k: Number of top documents to return
-            
-        Returns:
-            Reranked documents
-        """
+        """Rerank documents by relevance"""
         if not documents:
             return []
         
-        # Extract texts
-        texts = [doc["text"] for doc in documents]
+        # Get embeddings
+        model = self.model_manager.get_model(self.model_name)
+        query_embedding = model.encode([query])
+        doc_embeddings = model.encode([doc["text"] for doc in documents])
         
-        # Generate embeddings for query and documents
-        query_embedding = self.embeddings_model.encode([query])
-        doc_embeddings = self.embeddings_model.encode(texts)
-        
-        # Calculate cosine similarity
+        # Calculate similarities
         similarities = cosine_similarity(query_embedding, doc_embeddings)[0]
         
-        # Create reranked results
-        reranked_docs = []
-        for i, (doc, similarity) in enumerate(zip(documents, similarities)):
-            reranked_doc = doc.copy()
-            reranked_doc["rerank_score"] = float(similarity)
-            reranked_doc["original_rank"] = doc.get("rank", i + 1)
-            reranked_docs.append(reranked_doc)
+        # Sort by similarity
+        sorted_indices = np.argsort(similarities)[::-1]
         
-        # Sort by rerank score
-        reranked_docs.sort(key=lambda x: x["rerank_score"], reverse=True)
+        reranked = []
+        for i in sorted_indices[:top_k]:
+            doc = documents[i].copy()
+            doc["rerank_score"] = float(similarities[i])
+            reranked.append(doc)
         
-        # Return top_k results
-        return reranked_docs[:top_k]
+        return reranked
 
 class RAGPipeline:
-    """
-    Complete RAG pipeline for financial document retrieval
-    """
+    """Main RAG pipeline"""
     
     def __init__(self):
         self.chunker = DocumentChunker()
         self.vector_store = VectorStore()
         self.reranker = Reranker()
-        
+    
     def index_document(self, document_data: Dict[str, Any]) -> None:
-        """
-        Index a document for retrieval
-        
-        Args:
-            document_data: Document data from parser
-        """
+        """Index a document for retrieval"""
         text = document_data.get("cleaned_text", "")
+        if not text:
+            logger.warning("No text to index")
+            return
+        
+        # Create metadata
         metadata = {
-            "file_path": document_data.get("file_path", ""),
-            "extraction_method": document_data.get("extraction_method", ""),
+            "file_path": document_data.get("file_path", "unknown"),
             "word_count": document_data.get("word_count", 0),
-            "indexed_at": str(datetime.now())
+            "extraction_method": document_data.get("extraction_method", "unknown"),
+            "indexed_at": datetime.now().isoformat()
         }
         
-        # Create chunks
+        # Chunk the document
         chunks = self.chunker.chunk_text(text, metadata)
         
         # Add to vector store
-        self.vector_store.add_documents(chunks)
-        
-        # Save index
-        self.vector_store.save_index()
-        
-        logger.info(f"Indexed document with {len(chunks)} chunks")
+        if chunks:
+            self.vector_store.add_documents(chunks)
+            self.vector_store.save_index()
+            logger.info(f"Indexed document: {metadata['file_path']}")
     
     def retrieve_context(self, query: str, top_k: int = 5, rerank: bool = True) -> str:
-        """
-        Retrieve relevant context for a query
-        
-        Args:
-            query: Query text
-            top_k: Number of documents to retrieve
-            rerank: Whether to rerank results
-            
-        Returns:
-            Concatenated context text
-        """
-        # Search for similar documents
+        """Retrieve relevant context for a query"""
+        # Search vector store
         results = self.vector_store.search(query, k=top_k * 2)  # Get more for reranking
         
         if not results:
             return ""
         
         # Rerank if requested
-        if rerank:
+        if rerank and len(results) > 1:
             results = self.reranker.rerank(query, results, top_k)
         else:
             results = results[:top_k]
         
-        # Concatenate context
+        # Combine context
         context_parts = []
         for result in results:
-            context_parts.append(f"[Score: {result.get('rerank_score', result.get('score', 0)):.3f}] {result['text']}")
+            context_parts.append(result["text"])
         
         context = "\n\n".join(context_parts)
-        logger.info(f"Retrieved context from {len(results)} documents")
+        logger.info(f"Retrieved context from {len(results)} chunks")
         
         return context
     
     def get_pipeline_stats(self) -> Dict[str, Any]:
         """Get pipeline statistics"""
         return {
-            "vector_store_stats": self.vector_store.get_stats(),
-            "chunk_size": self.chunker.chunk_size,
-            "overlap": self.chunker.overlap,
-            "reranker_model": self.reranker.model_name
+            **self.vector_store.get_stats(),
+            "chunker_config": {
+                "chunk_size": self.chunker.chunk_size,
+                "overlap": self.chunker.overlap
+            }
         }
 
 # Example usage and testing

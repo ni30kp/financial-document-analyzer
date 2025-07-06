@@ -1,5 +1,5 @@
 """
-Configuration settings for the Multi-Agent Financial PDF Processing System
+Configuration settings
 """
 import os
 import logging
@@ -18,7 +18,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="opentelemetry")
 
 class Settings:
-    """Configuration settings for the financial agent system"""
+    """Configuration settings"""
     
     # UltraSafe API Configuration
     ULTRASAFE_API_KEY: str = os.getenv("ULTRASAFE_API_KEY", "your_ultrasafe_api_key_here")
@@ -48,13 +48,13 @@ class Settings:
     LOGS_DIR: str = "./logs"
     
     def validate(self) -> bool:
-        """Validate that required settings are present"""
+        """Check if API key is set"""
         if self.ULTRASAFE_API_KEY == "your_ultrasafe_api_key_here":
             return False
         return True
     
     def setup_logging(self) -> None:
-        """Setup comprehensive logging configuration"""
+        """Setup logging"""
         # Create logs directory
         os.makedirs(self.LOGS_DIR, exist_ok=True)
         
@@ -68,7 +68,7 @@ class Settings:
             ]
         )
         
-        # Suppress noisy loggers
+        # Quiet down noisy loggers
         logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
         logging.getLogger("transformers").setLevel(logging.WARNING)
         logging.getLogger("torch").setLevel(logging.WARNING)

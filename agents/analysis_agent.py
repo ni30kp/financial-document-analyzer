@@ -1,5 +1,5 @@
 """
-Analysis Agent for extracting financial metrics from parsed text
+Financial analysis agent
 """
 import json
 import re
@@ -26,7 +26,7 @@ class FinancialAnalyzer:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a financial analyst extracting key metrics from financial documents."},
+                    {"role": "system", "content": "Extract financial metrics from this document."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=settings.MAX_TOKENS,
@@ -36,25 +36,24 @@ class FinancialAnalyzer:
             analysis_result = response.choices[0].message.content
             metrics = self._parse_analysis_response(analysis_result)
             
-            logger.info(f"Extracted {len(metrics)} financial metrics")
+            logger.info(f"Extracted metrics")
             return metrics
             
         except Exception as e:
-            logger.error(f"Error in financial analysis: {e}")
+            logger.error(f"Analysis error: {e}")
             raise
     
     def _create_analysis_prompt(self, text: str, context: str = None) -> str:
         base_prompt = f"""
-        Analyze this financial document and extract key metrics in JSON format:
+        Extract financial metrics from this document as JSON:
         
-        Document Text:
         {text[:4000]}
         
-        Extract this information:
+        Return this structure:
         {{
             "revenue": {{
                 "current_year": "value",
-                "previous_year": "value",
+                "previous_year": "value", 
                 "growth_rate": "percentage"
             }},
             "profit_metrics": {{
@@ -85,12 +84,11 @@ class FinancialAnalyzer:
             }}
         }}
         
-        Use exact figures when available, calculate ratios when possible.
-        If a metric is not available, use "N/A".
+        Use exact figures when available. If not found, use "N/A".
         """
         
         if context:
-            base_prompt += f"\n\nAdditional Context:\n{context[:1000]}"
+            base_prompt += f"\n\nContext:\n{context[:1000]}"
         
         return base_prompt
     
@@ -105,7 +103,7 @@ class FinancialAnalyzer:
                 return self._extract_metrics_from_text(response)
                 
         except json.JSONDecodeError:
-            logger.warning("Failed to parse JSON response, falling back to text extraction")
+            logger.warning("JSON parse failed, using text extraction")
             return self._extract_metrics_from_text(response)
     
     def _extract_metrics_from_text(self, text: str) -> dict:
@@ -182,51 +180,39 @@ class FinancialAnalysisAgent:
     def create_agent(self) -> Agent:
         return Agent(
             role='Financial Analyst',
-            goal='Extract and analyze financial metrics from documents',
-            backstory="""You are a skilled financial analyst with expertise in 
-            extracting key performance indicators from financial documents.""",
+            goal='Extract financial metrics',
+            backstory="Financial data extraction specialist",
             verbose=True,
             allow_delegation=False
         )
     
     def create_task(self, document_data: dict, context: str = None) -> Task:
         return Task(
-            description=f"Analyze financial document and extract key metrics",
+            description=f"Analyze financial document",
             agent=self.create_agent(),
-            expected_output="Comprehensive financial analysis with metrics and insights"
+            expected_output="Financial metrics and analysis"
         )
     
     def execute(self, document_data: dict, context: str = None) -> dict:
         try:
-            text = document_data.get('cleaned_text', '')
+            text = document_data.get("cleaned_text", "")
+            if not text:
+                raise ValueError("No text to analyze")
             
-            # Extract financial metrics
             metrics = self.analyzer.extract_financial_metrics(text, context)
-            
-            # Identify trends
             trends = self.analyzer.identify_trends(metrics)
-            if trends:
-                metrics["notable_trends"] = trends
-            
-            # Calculate additional metrics if possible
-            if "revenue" in metrics and "profit_metrics" in metrics:
-                try:
-                    revenue_val = float(metrics["revenue"].get("current_year", "0").replace(",", ""))
-                    profit_val = float(metrics["profit_metrics"].get("net_income", "0").replace(",", ""))
-                    
-                    if revenue_val > 0:
-                        profit_margin = (profit_val / revenue_val) * 100
-                        metrics["profit_metrics"]["calculated_margin"] = f"{profit_margin:.2f}%"
-                except:
-                    pass
             
             return {
                 "metrics": metrics,
-                "analysis_confidence": "high" if len(metrics) > 3 else "medium",
-                "extracted_fields": len(metrics),
-                "trends_identified": len(trends)
+                "trends": trends,
+                "source_document": document_data.get("file_path", "unknown"),
+                "analysis_metadata": {
+                    "text_length": len(text),
+                    "extraction_method": document_data.get("extraction_method", "unknown"),
+                    "context_used": bool(context)
+                }
             }
             
         except Exception as e:
-            logger.error(f"Error in financial analysis execution: {e}")
+            logger.error(f"Analysis execution error: {e}")
             raise 

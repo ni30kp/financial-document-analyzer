@@ -1,5 +1,5 @@
 """
-Main entry point for the Financial Agent System
+CLI for the Financial Agent System
 """
 import os
 import sys
@@ -24,20 +24,20 @@ def create_sample_data():
     try:
         logger.info("Creating sample PDF...")
         pdf_path = create_sample_pdf()
-        logger.info(f"Sample PDF created: {pdf_path}")
+        logger.info(f"Created: {pdf_path}")
         return pdf_path
     except Exception as e:
-        logger.error(f"Error creating sample data: {e}")
+        logger.error(f"Error creating sample: {e}")
         return None
 
 def process_single_document(pdf_path: str, use_rag: bool = True):
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info("Initializing system...")
+        logger.info("Starting system...")
         system = FinancialAgentSystem()
         
-        logger.info(f"Processing document: {pdf_path}")
+        logger.info(f"Processing: {pdf_path}")
         results = system.process_document(pdf_path, use_rag)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -48,14 +48,14 @@ def process_single_document(pdf_path: str, use_rag: bool = True):
         return results
         
     except Exception as e:
-        logger.error(f"Error processing document: {e}")
+        logger.error(f"Error: {e}")
         return None
 
 def process_batch_documents(pdf_paths: list, use_rag: bool = True):
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info("Initializing system for batch processing...")
+        logger.info("Starting batch processing...")
         system = FinancialAgentSystem()
         
         logger.info(f"Processing {len(pdf_paths)} documents...")
@@ -69,17 +69,17 @@ def process_batch_documents(pdf_paths: list, use_rag: bool = True):
         return results
         
     except Exception as e:
-        logger.error(f"Error in batch processing: {e}")
+        logger.error(f"Batch error: {e}")
         return None
 
 def print_summary(results: dict):
     if not results:
-        print("No results to display")
+        print("No results")
         return
     
-    print("\n" + "="*50)
-    print("FINANCIAL DOCUMENT PROCESSING SUMMARY")
-    print("="*50)
+    print("\n" + "-"*40)
+    print("RESULTS")
+    print("-"*40)
     
     metadata = results.get("metadata", {})
     print(f"Document: {metadata.get('document', 'Unknown')}")
@@ -108,59 +108,58 @@ def print_summary(results: dict):
     report = results.get("executive_report", {})
     if report:
         dashboard = report.get("dashboard_summary", {})
-        print(f"\nEXECUTIVE SUMMARY:")
-        print(f"  Overall Health: {dashboard.get('overall_health', 'N/A')}")
-        print(f"  Top Risks: {len(dashboard.get('top_risks', []))}")
-        print(f"  Key Trends: {len(dashboard.get('key_trends', []))}")
+        print(f"\nSUMMARY:")
+        print(f"  Health: {dashboard.get('overall_health', 'N/A')}")
+        print(f"  Risks: {len(dashboard.get('top_risks', []))}")
+        print(f"  Trends: {len(dashboard.get('key_trends', []))}")
     
-    print("\n" + "="*50)
+    print("-"*40)
 
 def print_batch_summary(results: dict):
     if not results:
-        print("No batch results to display")
+        print("No results")
         return
     
-    print("\n" + "="*50)
-    print("BATCH PROCESSING SUMMARY")
-    print("="*50)
+    print("\n" + "-"*40)
+    print("BATCH RESULTS")
+    print("-"*40)
     
     processed = results.get("processed", [])
     failed = results.get("failed", [])
     
-    print(f"Total documents: {len(processed) + len(failed)}")
-    print(f"Successful: {len(processed)}")
+    print(f"Total: {len(processed) + len(failed)}")
+    print(f"Success: {len(processed)}")
     print(f"Failed: {len(failed)}")
     
     if failed:
-        print("\nFAILED DOCUMENTS:")
+        print("\nFAILURES:")
         for failure in failed:
-            print(f"  - {failure.get('path', 'Unknown')}: {failure.get('error', 'Unknown error')}")
+            print(f"  - {failure.get('path', 'Unknown')}: {failure.get('error', 'Unknown')}")
     
-    print("\n" + "="*50)
+    print("-"*40)
 
 def run_demo():
     logger = setup_logging()
-    logger.info("Starting demo mode...")
+    logger.info("Demo mode...")
     
     pdf_path = create_sample_data()
     if not pdf_path:
         print("Failed to create sample data")
         return
     
-    print("Processing sample document...")
+    print("Processing sample...")
     results = process_single_document(pdf_path, use_rag=True)
     
     if results:
-        print("\nDemo completed successfully!")
-        print(f"Results saved to: {results.get('output_path', 'Unknown')}")
+        print("\nDemo done!")
     else:
         print("Demo failed")
 
 def main():
     parser = argparse.ArgumentParser(description='Financial Agent System')
-    parser.add_argument('--demo', action='store_true', help='Run demo mode')
-    parser.add_argument('--file', type=str, help='Process specific PDF file')
-    parser.add_argument('--batch', nargs='+', help='Process multiple PDF files')
+    parser.add_argument('--demo', action='store_true', help='Run demo')
+    parser.add_argument('--file', type=str, help='Process PDF file')
+    parser.add_argument('--batch', nargs='+', help='Process multiple PDFs')
     parser.add_argument('--no-rag', action='store_true', help='Disable RAG')
     
     args = parser.parse_args()
@@ -178,12 +177,12 @@ def main():
     elif args.batch:
         existing_files = [f for f in args.batch if os.path.exists(f)]
         if not existing_files:
-            print("No valid files found")
+            print("No valid files")
             return
         
         process_batch_documents(existing_files, use_rag=not args.no_rag)
     else:
-        print("Use --demo to run demo mode, --file to process a single file, or --batch to process multiple files")
+        print("Use --demo, --file, or --batch")
 
 if __name__ == "__main__":
     main() 

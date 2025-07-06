@@ -1,40 +1,31 @@
-# Financial Document Analyzer 🏦
+# Financial Document Analyzer 
 
-A production-ready multi-agent system for processing financial PDF reports and extracting key metrics using **CrewAI orchestration**, **RAG pipeline**, and **UltraSafe API integration**.
+A multi-agent system that processes financial PDF reports and extracts key metrics. Built with CrewAI, RAG pipeline, and UltraSafe API. Works pretty well for analyzing quarterly reports, annual statements, and similar financial documents.
 
-## ✨ Features
+## Features
 
-### 🤖 Multi-Agent Architecture
-- **DocumentParserAgent**: Intelligent PDF text and table extraction
-- **FinancialAnalysisAgent**: Advanced financial metrics analysis and trend identification  
-- **ReportGeneratorAgent**: Executive summary and insights generation
+The system uses three specialized agents that work together:
+- **DocumentParserAgent** - Extracts text and tables from PDFs (handles most common formats)
+- **FinancialAnalysisAgent** - Analyzes financial metrics and identifies trends
+- **ReportGeneratorAgent** - Creates executive summaries and insights
 
-### 🔍 Advanced RAG Pipeline
-- **FAISS Vector Database**: High-performance similarity search
-- **Multi-Hop RAG**: Complex query processing with reasoning chains
-- **Intelligent Chunking**: Optimized document segmentation
-- **Semantic Search**: Context-aware document retrieval
+It includes a RAG pipeline with FAISS for document search, plus multi-hop reasoning for complex queries. You can use it via a web interface (Streamlit) or command line.
 
-### 🌐 User Interfaces
-- **Streamlit Web App**: Modern UI with document upload and interactive chat
-- **CLI Interface**: Command-line tool for batch processing
-- **REST API Ready**: Easily deployable as a web service
+Some nice touches:
+- CPU-optimized FAISS configuration (no GPU needed)
+- Intelligent document chunking 
+- Built-in health diagnostics
+- Comprehensive error handling
+- Works well for batch processing multiple documents
 
-### 🛡️ Production Features
-- **UltraSafe API Integration**: Enterprise-grade LLM service
-- **Comprehensive Error Handling**: Robust error management
-- **Performance Optimizations**: CPU-optimized FAISS, model caching
-- **Health Diagnostics**: Built-in system health monitoring
-- **Logging & Monitoring**: Comprehensive logging system
+## Quick Start
 
-## 🚀 Quick Start
+### What You Need
+- **Python 3.9.6** or **Python 3.13.3** - I've tested these versions extensively. Python 3.10-3.12 will probably work but I haven't tested them thoroughly. If you're having weird import errors or dependency conflicts, try switching to one of these tested versions.
+- **UltraSafe API key** - Get this from their service
+- **macOS or Linux** - Windows users can use WSL
 
-### Prerequisites
-- **Python 3.9+** (tested with Python 3.9.6 and 3.13.3)
-- **UltraSafe API key**
-- **macOS/Linux** (Windows support via WSL)
-
-### One-Line Installation
+### Installation
 
 ```bash
 git clone https://github.com/your-username/financial-document-analyzer.git
@@ -42,17 +33,11 @@ cd financial-document-analyzer
 chmod +x setup_macos.sh && ./setup_macos.sh
 ```
 
-The setup script will:
-- ✅ Create and configure virtual environment
-- ✅ Install all dependencies with compatible versions
-- ✅ Set up FAISS CPU-only configuration
-- ✅ Configure OpenTelemetry and logging
-- ✅ Create sample configuration files
-- ✅ Run comprehensive system diagnostics
+The setup script handles everything - creates a virtual environment, installs dependencies, configures FAISS for CPU-only operation, and runs diagnostics to make sure everything works. Takes about 2-3 minutes on a decent connection.
 
-### Manual Configuration
+### Configuration
 
-After installation, configure your API credentials:
+You'll need to add your API key after installation:
 
 ```bash
 # Copy the environment template
@@ -62,57 +47,45 @@ cp env.template .env
 nano .env
 ```
 
-**Required Environment Variables:**
+The main thing you need to change is your API key:
 ```bash
-# UltraSafe API Configuration
-ULTRASAFE_API_KEY=your_api_key_here
-ULTRASAFE_BASE_URL=https://api.us.inc/usf/v1/hiring
-ULTRASAFE_MODEL=usf1-mini
-
-# System Configuration
-FAISS_ENABLE_GPU=0
-CUDA_VISIBLE_DEVICES=""
-OTEL_SDK_DISABLED=true
-OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=all
+ULTRASAFE_API_KEY=your_actual_api_key_here
 ```
 
-## 📖 Usage
+The other settings should work as-is, but feel free to adjust them. The template has comments explaining what each one does. If you're getting "403 Invalid API key" errors, double-check that you've set the API key correctly in the .env file.
 
-### 🖥️ Command Line Interface
+## Usage
+
+### Command Line
 
 ```bash
 # Activate virtual environment
 source financial_agent_env/bin/activate
 
-# Run system diagnostics
+# Run system diagnostics (good to do first)
 python diagnose_system.py
 
-# Demo mode (uses sample data)
+# Demo mode - uses sample data
 python main.py --demo
 
-# Process single document
+# Process a single document
 python main.py --file path/to/financial_report.pdf
 
-# Batch processing
+# Process multiple documents
 python main.py --batch file1.pdf file2.pdf file3.pdf
 
 # Interactive mode
 python main.py --interactive
 ```
 
-### 🌐 Web Interface
+### Web Interface
 
 ```bash
 # Start the Streamlit app
 streamlit run streamlit_app.py
 ```
 
-**Features:**
-- 📁 **Document Upload**: Drag-and-drop PDF processing
-- 💬 **Interactive Chat**: Ask questions about your documents
-- 🔍 **Multi-Hop Analysis**: Complex analytical queries
-- 📊 **Results Dashboard**: Visual metrics and insights
-- 📈 **Performance Metrics**: System performance monitoring
+The web interface lets you upload PDFs, ask questions about them, and run complex multi-hop analyses. It's pretty intuitive - just drag and drop your files and start asking questions.
 
 ### 🔧 System Health Check
 
@@ -325,63 +298,63 @@ print('✅ System initialized successfully')
 
 ## 📊 Performance Metrics
 
-**Typical Performance:**
-- **Document Processing**: 2-5 seconds per PDF
-- **Vector Search**: <100ms for 1000+ documents
-- **Multi-Hop Analysis**: 10-30 seconds for complex queries
-- **Memory Usage**: ~500MB for 1000 documents
-- **Storage**: ~1MB per 1000 document chunks
+**What to Expect:**
+- **Document Processing**: 2-5 seconds per PDF (depends on size and complexity)
+- **Vector Search**: Pretty fast - under 100ms for 1000+ documents
+- **Multi-Hop Analysis**: 10-30 seconds for complex queries (this involves multiple API calls)
+- **Memory Usage**: Around 500MB for 1000 documents in memory
+- **Storage**: About 1MB per 1000 document chunks on disk
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
-**1. Virtual Environment Issues**
+**Virtual Environment Problems**
 ```bash
-# Ensure virtual environment is activated
+# Make sure it's activated
 source financial_agent_env/bin/activate
 
-# Verify Python version
-python --version  # Should be 3.9+
+# Check Python version
+python --version  # Should be 3.9.6 or 3.13.3
 
-# Reinstall if needed
+# If things are really broken, nuke and restart
 rm -rf financial_agent_env
 ./setup_macos.sh
 ```
 
-**2. API Configuration Issues**
+**API Key Issues**
 ```bash
-# Check API configuration
+# Check if your API key is set
 python -c "
 from config.settings import settings
 print(f'API URL: {settings.ULTRASAFE_BASE_URL}')
 print(f'API Key: {settings.ULTRASAFE_API_KEY[:10]}...')
 "
 
-# Test API connection
+# Run diagnostics to test API connection
 python diagnose_system.py
 ```
 
-**3. FAISS/Vector Database Issues**
+**FAISS/Vector Database Issues**
 ```bash
-# Check FAISS configuration
+# Check FAISS is working
 python -c "
 import faiss
 print(f'FAISS version: {faiss.__version__}')
-print('✅ FAISS working correctly')
+print('FAISS is working')
 "
 
-# Reset vector database
+# If the vector database is corrupted, reset it
 rm -rf data/faiss_index*
-python main.py --demo  # Will rebuild index
+python main.py --demo  # This will rebuild the index
 ```
 
-**4. Dependencies Issues**
+**Dependency Issues**
 ```bash
-# Check installed packages
+# Check what's installed
 pip list | grep -E "crewai|langchain|faiss|streamlit"
 
-# Reinstall dependencies
+# Nuclear option - reinstall everything
 pip install -r requirements.txt --force-reinstall
 ```
 

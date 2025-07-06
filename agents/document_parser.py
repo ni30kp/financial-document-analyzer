@@ -1,5 +1,5 @@
 """
-Document Parser Agent for extracting text from PDF financial documents
+PDF document parser
 """
 import fitz  # PyMuPDF
 import pdfplumber
@@ -77,12 +77,12 @@ class DocumentParser:
     
     def extract_and_clean(self, pdf_path: str) -> dict:
         if not Path(pdf_path).exists():
-            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
         
         if not pdf_path.lower().endswith('.pdf'):
-            raise ValueError(f"Unsupported file format: {pdf_path}")
+            raise ValueError(f"Not a PDF: {pdf_path}")
         
-        logger.info(f"Processing PDF: {pdf_path}")
+        logger.info(f"Processing: {pdf_path}")
         
         try:
             # Try PyMuPDF first
@@ -115,7 +115,7 @@ class DocumentParser:
             "character_count": len(cleaned_text)
         }
         
-        logger.info(f"Extracted {result['word_count']} words using {extraction_method}")
+        logger.info(f"Got {result['word_count']} words using {extraction_method}")
         return result
 
 class DocumentParserAgent:
@@ -125,23 +125,22 @@ class DocumentParserAgent:
     def create_agent(self) -> Agent:
         return Agent(
             role='Document Parser',
-            goal='Extract and clean text from PDF financial documents',
-            backstory="""You are a document processing specialist with experience 
-            in extracting information from financial PDFs.""",
+            goal='Extract text from PDFs',
+            backstory="PDF text extraction specialist",
             verbose=True,
             allow_delegation=False
         )
     
     def create_task(self, pdf_path: str) -> Task:
         return Task(
-            description=f"Extract text from PDF: {pdf_path}",
+            description=f"Extract text from: {pdf_path}",
             agent=self.create_agent(),
-            expected_output="Structured document data with text, tables, and metadata"
+            expected_output="Document data with text and tables"
         )
     
     def execute(self, pdf_path: str) -> dict:
         try:
             return self.parser.extract_and_clean(pdf_path)
         except Exception as e:
-            logger.error(f"Error in document parsing: {e}")
+            logger.error(f"Parse error: {e}")
             raise 

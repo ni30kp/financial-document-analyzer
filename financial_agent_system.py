@@ -1,5 +1,5 @@
 """
-Financial document processing system using CrewAI agents
+Financial document processing system
 """
 import os
 import json
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class FinancialAgentSystem:
     def __init__(self):
-        logger.info("Initializing Financial Agent System...")
+        logger.info("Starting up...")
         
         # Initialize index manager
         self.index_manager = IndexManager()
@@ -49,7 +49,7 @@ class FinancialAgentSystem:
         }
         
         self._setup_directories()
-        logger.info("Financial Agent System initialized successfully")
+        logger.info("System ready")
         
     def _setup_directories(self):
         dirs = [settings.DATA_DIR, settings.LOGS_DIR, os.path.dirname(settings.FAISS_INDEX_PATH)]
@@ -57,7 +57,7 @@ class FinancialAgentSystem:
             Path(d).mkdir(parents=True, exist_ok=True)
     
     def get_system_status(self) -> Dict[str, Any]:
-        """Get comprehensive system status"""
+        """Get system status"""
         return {
             "system_stats": self.stats,
             "index_info": self.index_manager.get_index_info(),
@@ -67,11 +67,11 @@ class FinancialAgentSystem:
     
     def clear_index(self, create_backup: bool = True) -> bool:
         """Clear the document index"""
-        logger.info("Clearing document index...")
+        logger.info("Clearing index...")
         return self.index_manager.clear_index(create_backup)
     
     def process_document(self, pdf_path: str, use_rag: bool = True) -> Dict[str, Any]:
-        logger.info(f"Processing document: {pdf_path}")
+        logger.info(f"Processing: {pdf_path}")
         
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"Document not found: {pdf_path}")
@@ -117,7 +117,7 @@ class FinancialAgentSystem:
                 result = self.process_document(pdf_path, use_rag)
                 results["processed"].append(result)
             except Exception as e:
-                logger.error(f"Failed to process {pdf_path}: {e}")
+                logger.error(f"Failed: {pdf_path}: {e}")
                 results["failed"].append({"path": pdf_path, "error": str(e)})
         
         return results
@@ -132,7 +132,7 @@ class FinancialAgentSystem:
         with open(output_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
         
-        logger.info(f"Results saved to: {output_path}")
+        logger.info(f"Saved to: {output_path}")
         return output_path
     
     def get_stats(self):

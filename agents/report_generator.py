@@ -1,5 +1,5 @@
 """
-Report Generator Agent for creating executive summaries from financial metrics
+Report generator for financial summaries
 """
 import json
 import logging
@@ -29,7 +29,7 @@ class ReportGenerator:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a financial report writer who creates clear executive summaries for business leaders."},
+                    {"role": "system", "content": "Create an executive summary from financial data."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=settings.MAX_TOKENS,
@@ -39,11 +39,11 @@ class ReportGenerator:
             report_content = response.choices[0].message.content
             report = self._structure_report(report_content, metrics, trends)
             
-            logger.info("Generated executive summary successfully")
+            logger.info("Generated report")
             return report
             
         except Exception as e:
-            logger.error(f"Error generating report: {e}")
+            logger.error(f"Report error: {e}")
             raise
     
     def _create_report_prompt(self, metrics: dict, trends: list) -> str:
@@ -52,35 +52,19 @@ class ReportGenerator:
         prompt = f"""
         Create an executive summary for {company_name}'s financial performance.
         
-        Financial Metrics:
+        Financial Data:
         {json.dumps(metrics, indent=2)}
         
-        Key Trends:
+        Trends:
         {json.dumps(trends, indent=2)}
         
-        Create a professional executive summary that includes:
+        Include:
+        1. Executive Summary (2-3 paragraphs)
+        2. Key Financial Highlights  
+        3. Performance Analysis
+        4. Recommendations
         
-        1. EXECUTIVE SUMMARY (2-3 paragraphs)
-           - High-level overview of financial performance
-           - Key achievements and challenges
-           - Overall financial health assessment
-        
-        2. KEY FINANCIAL HIGHLIGHTS
-           - Revenue performance and growth
-           - Profitability metrics
-           - Year-over-year comparisons
-        
-        3. PERFORMANCE ANALYSIS
-           - Strengths and areas of concern
-           - Notable patterns in the data
-        
-        4. RECOMMENDATIONS
-           - Strategic recommendations for management
-           - Areas for improvement
-        
-        Use clear, professional language suitable for executives.
-        Include specific numbers and percentages where relevant.
-        Focus on actionable insights.
+        Keep it concise and focused on actionable insights.
         """
         
         return prompt
@@ -200,10 +184,8 @@ class ReportGenerator:
                         health_indicators.append('positive')
                     elif rate < 0:
                         health_indicators.append('negative')
-                    else:
-                        health_indicators.append('neutral')
                 except:
-                    health_indicators.append('neutral')
+                    pass
         
         # Check profitability
         if 'profit_metrics' in metrics:
@@ -215,12 +197,9 @@ class ReportGenerator:
                         health_indicators.append('positive')
                     elif margin_val < 5:
                         health_indicators.append('negative')
-                    else:
-                        health_indicators.append('neutral')
                 except:
-                    health_indicators.append('neutral')
+                    pass
         
-        # Overall assessment
         if not health_indicators:
             return 'Unknown'
         
@@ -228,11 +207,11 @@ class ReportGenerator:
         negative_count = health_indicators.count('negative')
         
         if positive_count > negative_count:
-            return 'Strong'
+            return 'Good'
         elif negative_count > positive_count:
-            return 'Weak'
+            return 'Concerning'
         else:
-            return 'Stable'
+            return 'Mixed'
 
 class ReportGeneratorAgent:
     def __init__(self):
@@ -241,23 +220,22 @@ class ReportGeneratorAgent:
     def create_agent(self) -> Agent:
         return Agent(
             role='Report Generator',
-            goal='Create comprehensive executive summaries from financial analysis',
-            backstory="""You are an experienced financial report writer who creates 
-            clear, actionable executive summaries for business leaders.""",
+            goal='Create executive summaries',
+            backstory="Financial report writer",
             verbose=True,
             allow_delegation=False
         )
     
     def create_task(self, analysis_results: dict) -> Task:
         return Task(
-            description=f"Generate executive summary from financial analysis",
+            description="Generate executive summary report",
             agent=self.create_agent(),
-            expected_output="Professional executive summary with key insights and recommendations"
+            expected_output="Executive summary with insights"
         )
     
     def execute(self, analysis_results: dict) -> dict:
         try:
             return self.generator.generate_executive_summary(analysis_results)
         except Exception as e:
-            logger.error(f"Error in report generation: {e}")
+            logger.error(f"Report generation error: {e}")
             raise 

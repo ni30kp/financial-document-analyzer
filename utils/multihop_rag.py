@@ -1,5 +1,5 @@
 """
-Multi-Hop RAG Pipeline for Financial Document Analysis
+Multi-hop RAG for complex queries
 """
 
 import logging
@@ -83,12 +83,6 @@ class QueryDecomposer:
 
         Query: {query}
 
-        Requirements:
-        1. Each sub-question should be specific and focused
-        2. Sub-questions should build on each other logically
-        3. Cover all aspects of the original query
-        4. Be suitable for document retrieval
-
         Return only the sub-questions as a JSON array of strings.
         """
         
@@ -115,7 +109,7 @@ class QueryDecomposer:
                         if re.match(r'^\d+\.', line.strip()):
                             sub_queries.append(line.strip().split('.', 1)[1].strip())
             
-            logger.info(f"Decomposed query into {len(sub_queries)} sub-questions")
+            logger.info(f"Decomposed into {len(sub_queries)} sub-questions")
             return sub_queries
             
         except Exception as e:
@@ -151,18 +145,18 @@ class ReasoningEngine:
     def execute_hop(self, sub_query: str, hop_number: int, previous_context: str = "") -> HopResult:
         enhanced_query = sub_query
         if previous_context:
-            enhanced_query = f"Given the previous context: {previous_context[:500]}...\n\nNow answer: {sub_query}"
+            enhanced_query = f"Given context: {previous_context[:500]}\n\nAnswer: {sub_query}"
         
         context = self.rag_pipeline.retrieve_context(enhanced_query, top_k=5)
         
         reasoning_prompt = f"""
-        Based on the retrieved context, provide a focused answer to this sub-question: {sub_query}
+        Based on the context, answer this question: {sub_query}
 
         Context:
         {context}
 
-        Provide your answer in this format:
-        ANSWER: [your specific answer]
+        Format:
+        ANSWER: [your answer]
         REASONING: [your reasoning]
         CONFIDENCE: [0.0-1.0]
         """
@@ -200,32 +194,26 @@ class ReasoningEngine:
             return HopResult(
                 hop_number=hop_number,
                 sub_query=sub_query,
-                retrieved_context=context,
-                reasoning=f"Error processing query: {e}",
-                confidence=0.1,
+                retrieved_context="",
+                reasoning="Error processing query",
+                confidence=0.0,
                 metadata={"error": str(e)}
             )
     
     def synthesize_final_answer(self, query: str, hops: List[HopResult]) -> Tuple[str, str, float]:
+        """Synthesize final answer from all hops"""
+        
         hop_summaries = []
         for hop in hops:
-            hop_summaries.append(f"Q{hop.hop_number}: {hop.sub_query}\nA{hop.hop_number}: {hop.reasoning}")
+            hop_summaries.append(f"Q: {hop.sub_query}\nA: {hop.reasoning}")
         
         synthesis_prompt = f"""
-        Original Question: {query}
-        
-        Sub-question Analysis:
+        Original question: {query}
+
+        Findings:
         {chr(10).join(hop_summaries)}
-        
-        Based on the analysis above, provide a comprehensive final answer to the original question.
-        
-        Your response should:
-        1. Synthesize insights from all sub-questions
-        2. Provide a clear, complete answer
-        3. Include specific details and evidence
-        4. Be well-structured and coherent
-        
-        Final Answer:
+
+        Provide a comprehensive answer to the original question.
         """
         
         try:
@@ -233,55 +221,45 @@ class ReasoningEngine:
                 model=self.settings.ULTRASAFE_MODEL,
                 messages=[{"role": "user", "content": synthesis_prompt}],
                 max_tokens=800,
-                temperature=0.2
+                temperature=0.1
             )
             
             final_answer = response.choices[0].message.content.strip()
             
             # Create reasoning chain
-            reasoning_chain = f"Multi-hop analysis with {len(hops)} steps:\n"
-            for i, hop in enumerate(hops, 1):
-                reasoning_chain += f"{i}. {hop.sub_query} -> {hop.reasoning}\n"
-            reasoning_chain += f"Final synthesis: {final_answer}"
+            reasoning_chain = " -> ".join([hop.sub_query for hop in hops])
             
             # Calculate overall confidence
-            confidence = sum(hop.confidence for hop in hops) / len(hops)
+            avg_confidence = sum(hop.confidence for hop in hops) / len(hops) if hops else 0.0
             
-            return final_answer, reasoning_chain, confidence
+            return final_answer, reasoning_chain, avg_confidence
             
         except Exception as e:
-            logger.error(f"Error synthesizing final answer: {e}")
-            
-            # Fallback answer
-            fallback_answer = f"Based on the multi-hop analysis, here are the key findings:\n"
-            for hop in hops:
-                fallback_answer += f"- {hop.reasoning}\n"
-            
-            return fallback_answer, "Error in synthesis", 0.5
+            logger.error(f"Error synthesizing answer: {e}")
+            return "Error generating final answer", "", 0.0
 
 class MultiHopRAGPipeline:
     def __init__(self, rag_pipeline: RAGPipeline):
         self.rag_pipeline = rag_pipeline
-        self.query_decomposer = QueryDecomposer()
+        self.decomposer = QueryDecomposer()
         self.reasoning_engine = ReasoningEngine(rag_pipeline)
         
     def process_query(self, query: str) -> MultiHopResult:
+        """Process a complex query using multi-hop reasoning"""
         start_time = datetime.now()
         
-        # Classify query
-        query_type = self.query_decomposer.classify_query(query)
-        
-        # Decompose query
-        sub_queries = self.query_decomposer.decompose_query(query, query_type)
+        # Classify and decompose query
+        query_type = self.decomposer.classify_query(query)
+        sub_queries = self.decomposer.decompose_query(query, query_type)
         
         # Execute hops
         hops = []
         previous_context = ""
         
-        for i, sub_query in enumerate(sub_queries, 1):
-            hop_result = self.reasoning_engine.execute_hop(sub_query, i, previous_context)
-            hops.append(hop_result)
-            previous_context += f" {hop_result.reasoning}"
+        for i, sub_query in enumerate(sub_queries):
+            hop = self.reasoning_engine.execute_hop(sub_query, i + 1, previous_context)
+            hops.append(hop)
+            previous_context = hop.reasoning
         
         # Synthesize final answer
         final_answer, reasoning_chain, confidence = self.reasoning_engine.synthesize_final_answer(query, hops)
@@ -300,27 +278,17 @@ class MultiHopRAGPipeline:
         )
     
     def is_complex_query(self, query: str) -> bool:
-        query_type = self.query_decomposer.classify_query(query)
-        return query_type != QueryType.SIMPLE
+        """Check if query requires multi-hop reasoning"""
+        return self.decomposer.classify_query(query) != QueryType.SIMPLE
     
     def get_query_preview(self, query: str) -> Dict[str, Any]:
-        query_type = self.query_decomposer.classify_query(query)
-        requires_multihop = query_type != QueryType.SIMPLE
+        """Get a preview of how the query would be processed"""
+        query_type = self.decomposer.classify_query(query)
+        sub_queries = self.decomposer.decompose_query(query, query_type)
         
-        preview = {
+        return {
             "query_type": query_type.value,
-            "requires_multihop": requires_multihop,
-            "estimated_hops": 1 if not requires_multihop else 3,
-            "sub_queries": []
-        }
-        
-        if requires_multihop:
-            try:
-                sub_queries = self.query_decomposer.decompose_query(query, query_type)
-                preview["sub_queries"] = sub_queries
-                preview["estimated_hops"] = len(sub_queries)
-            except Exception as e:
-                logger.error(f"Error generating preview: {e}")
-                preview["sub_queries"] = [query]
-        
-        return preview 
+            "sub_queries": sub_queries,
+            "estimated_hops": len(sub_queries),
+            "is_complex": query_type != QueryType.SIMPLE
+        } 
